@@ -6,7 +6,7 @@ const { gerarRelatorio } = require('./relatorioPresenca');
 // Configurações
 const TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const NOME_CANAL_TEXTO = process.env.TEXT_CHANNEL_NAME; // exemplo: planejamento-de-sessoes
+const NOME_CANAL_TEXTO = process.env.TEXT_CHANNEL_NAME;
 
 const client = new Client({
   intents: [
@@ -26,7 +26,6 @@ const commands = [
     .setDescription('Mostra quem mais participou das chamadas'),
 ].map(cmd => cmd.toJSON());
 
-// Registra os comandos no Discord
 client.once('ready', async () => {
   console.log(`✅ Bot conectado como ${client.user.tag}`);
 
@@ -42,7 +41,6 @@ client.once('ready', async () => {
   }
 });
 
-// Manipulador de comandos
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -50,7 +48,6 @@ client.on('interactionCreate', async interaction => {
   const guildId = guild.id;
   const member = interaction.member;
 
-  // Busca o canal de texto de destino
   const canalTexto = guild.channels.cache.find(c => c.name === NOME_CANAL_TEXTO && c.isTextBased());
 
   if (interaction.commandName === 'call') {
@@ -63,14 +60,14 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    const membros = voiceChannel.members.map(m => m.user.username);
+    const membros = voiceChannel.members.map(m => `✅ ${m.user.username}`);
     const ids = voiceChannel.members.map(m => m.user.id);
     const hoje = new Date().toISOString().slice(0, 10);
 
     ids.forEach(id => salvarPresenca(guildId, id, hoje));
 
     const lista = membros.length
-      ? `🎙️ Presentes na chamada: ${membros.join(', ')}`
+      ? `🎙️ **Presentes na chamada \`${voiceChannel.name}\`**:\n${membros.join('\n')}`
       : '🔇 Ninguém além de você está na chamada.';
 
     if (canalTexto) {
