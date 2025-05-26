@@ -1,11 +1,11 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ChannelType } = require('discord.js');
 require('dotenv').config();
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates, // Para ver quem está na call
-    GatewayIntentBits.GuildMembers       // Para acessar membros do canal
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMembers
   ],
 });
 
@@ -24,7 +24,7 @@ client.once('ready', async () => {
       Routes.applicationCommands(client.user.id),
       { body: commands }
     );
-    console.log('🚀 Slash command /call registrado com sucesso');
+    console.log('🚀 Comando /call registrado com sucesso');
   } catch (err) {
     console.error('❌ Erro ao registrar comandos:', err);
   }
@@ -37,19 +37,42 @@ client.on('interactionCreate', async (interaction) => {
     const voiceChannel = interaction.member.voice.channel;
 
     if (!voiceChannel) {
-      await interaction.reply({
+      return interaction.reply({
         content: '❌ Você precisa estar em um canal de voz para usar esse comando.',
         ephemeral: true,
       });
-      return;
     }
 
-    const members = voiceChannel.members.map(m => m.user.username);
-    const message = members.length
-      ? `🎙️ Pessoas presentes na chamada: ${members.join(', ')}`
-      : '🔇 Ninguém mais está na chamada.';
+    const members = voiceChannel.members.map(m => `✅ ${m.user.username}`);
+    const listMessage = `🎙️ **Pessoas presentes na chamada \`${voiceChannel.name}\`**:\n${members.join('\n')}`;
 
-    await interaction.reply({ content: message, ephemeral: true });
+    // Obter nome do canal a partir do .env
+    const textChannelName = process.env.TEXT_CHANNEL_NAME;
+
+    const targetChannel = interaction.guild.channels.cache.find(
+      ch => ch.name === textChannelName && ch.type === ChannelType.GuildText
+    );
+
+    if (!targetChannel) {
+      return interaction.reply({
+        content: `❌ Não encontrei o canal de texto \`#${textChannelName}\`.`,
+        ephemeral: true,
+      });
+    }
+
+    try {
+      await targetChannel.send({ content: listMessage });
+      await interaction.reply({
+        content: `✅ Lista de participantes enviada para \`#${textChannelName}\`.`,
+        ephemeral: true,
+      });
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      await interaction.reply({
+        content: '❌ Ocorreu um erro ao tentar enviar a lista para o canal de texto.',
+        ephemeral: true,
+      });
+    }
   }
 });
 
