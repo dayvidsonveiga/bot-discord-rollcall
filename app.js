@@ -1,12 +1,11 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 require('dotenv').config();
-const { salvarPresenca } = require('./registroPresenca');
-const { gerarRelatorio } = require('./relatorioPresenca');
+const { saveAttendance } = require('./attendanceRegister');
+const { generateReport } = require('./attendanceReport');
 
-// Configurações
 const TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const NOME_CANAL_TEXTO = process.env.TEXT_CHANNEL_NAME;
+const TEXT_CHANNEL_NAME = process.env.TEXT_CHANNEL_NAME;
 
 const client = new Client({
   intents: [
@@ -16,10 +15,9 @@ const client = new Client({
   ],
 });
 
-// Comandos
 const commands = [
   new SlashCommandBuilder()
-    .setName('call')
+    .setName('chamada')
     .setDescription('Mostra quem está com você na chamada e registra presença'),
   new SlashCommandBuilder()
     .setName('relatorio')
@@ -35,7 +33,7 @@ client.once('ready', async () => {
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-    console.log('🚀 Comandos /call e /relatorio registrados com sucesso');
+    console.log('🚀 Comandos /chamada e /relatorio registrados com sucesso');
   } catch (err) {
     console.error('❌ Erro ao registrar comandos:', err);
   }
@@ -48,9 +46,11 @@ client.on('interactionCreate', async interaction => {
   const guildId = guild.id;
   const member = interaction.member;
 
-  const canalTexto = guild.channels.cache.find(c => c.name === NOME_CANAL_TEXTO && c.isTextBased());
+  const textChannel = guild.channels.cache.find(
+    c => c.name === TEXT_CHANNEL_NAME && c.isTextBased()
+  );
 
-  if (interaction.commandName === 'call') {
+  if (interaction.commandName === 'chamada') {
     const voiceChannel = member.voice.channel;
 
     if (!voiceChannel) {
@@ -60,40 +60,46 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    const membros = voiceChannel.members.map(m => `✅ ${m.user.username}`);
-    const ids = voiceChannel.members.map(m => m.user.id);
-    const hoje = new Date().toISOString().slice(0, 10);
+    const presentUsers = voiceChannel.members.map(m => `✅ ${m.user.username}`);
+    const userIds = voiceChannel.members.map(m => m.user.id);
+    const today = new Date().toISOString().slice(0, 10);
 
-    ids.forEach(id => salvarPresenca(guildId, id, hoje));
+    userIds.forEach(id => saveAttendance(guildId, id, today));
 
-    const lista = membros.length
-      ? `🎙️ **Presentes na chamada \`${voiceChannel.name}\`**:\n${membros.join('\n')}`
+    const attendanceList = presentUsers.length
+      ? `🎙️ **Presentes na chamada \`${voiceChannel.name}\`**:\n${presentUsers.join('\n')}`
       : '🔇 Ninguém além de você está na chamada.';
 
-    if (canalTexto) {
-      await canalTexto.send(lista);
+    if (textChannel) {
+      await textChannel.send(attendanceList);
     }
 
-    await interaction.reply({ content: '✅ Lista de presença registrada.', ephemeral: true });
+    await interaction.reply({
+      content: '✅ Lista de presença registrada.',
+      ephemeral: true,
+    });
   }
 
   if (interaction.commandName === 'relatorio') {
-    const relatorio = gerarRelatorio(guildId);
+    const report = generateReport(guildId);
 
-    if (relatorio.length === 0) {
-      return interaction.reply({ content: '📭 Nenhum dado de presença registrado ainda.', ephemeral: true });
+    if (report.length === 0) {
+      return interaction.reply({
+        content: '📭 Nenhum dado de presença registrado ainda.',
+        ephemeral: true,
+      });
     }
 
-    const linhas = await Promise.all(
-      relatorio.map(async (item, index) => {
-        const usuario = await guild.members.fetch(item.userId).catch(() => null);
-        const nome = usuario?.user.username || 'Usuário desconhecido';
-        return `${index + 1}. **${nome}** - ${item.quantidade} presença(s)`;
+    const lines = await Promise.all(
+      report.map(async (entry, index) => {
+        const user = await guild.members.fetch(entry.userId).catch(() => null);
+        const name = user?.user.username || 'Usuário desconhecido';
+        return `${index + 1}. **${name}** - ${entry.count} presença(s)`;
       })
     );
 
-    const resposta = `📊 **Relatório de Presenças:**\n\n${linhas.join('\n')}`;
-    interaction.reply({ content: resposta });
+    const reply = `📊 **Relatório de Presenças:**\n\n${lines.join('\n')}`;
+    interaction.reply({ content: reply });
   }
 });
 
