@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require
 require('dotenv').config();
 const { saveAttendance } = require('./attendanceRegister');
 const { generateReport } = require('./attendanceReport');
+const { generateChart } = require('./attendanceChart');
 
 const TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -22,6 +23,14 @@ const commands = [
   new SlashCommandBuilder()
     .setName('relatorio')
     .setDescription('Mostra quem mais participou das chamadas'),
+  new SlashCommandBuilder()
+    .setName('grafico')
+    .setDescription('Gera um gráfico com a frequência de presença dos participantes')
+    .addIntegerOption(option =>
+      option.setName('periodo')
+        .setDescription('Quantidade de dias (ex: 7, 30...)')
+        .setRequired(false)
+    ),
 ].map(cmd => cmd.toJSON());
 
 client.once('ready', async () => {
@@ -33,7 +42,7 @@ client.once('ready', async () => {
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-    console.log('🚀 Comandos /chamada e /relatorio registrados com sucesso');
+    console.log('🚀 Comandos /chamada, /relatorio e /grafico registrados com sucesso');
   } catch (err) {
     console.error('❌ Erro ao registrar comandos:', err);
   }
@@ -100,6 +109,25 @@ client.on('interactionCreate', async interaction => {
 
     const reply = `📊 **Relatório de Presenças:**\n\n${lines.join('\n')}`;
     interaction.reply({ content: reply });
+  }
+
+  if (interaction.commandName === 'grafico') {
+    await interaction.deferReply();
+
+    const days = interaction.options.getInteger('periodo') || null;
+
+    const chartBuffer = await generateChart(guild, guildId, days);
+
+    if (!chartBuffer) {
+      return interaction.editReply('📭 Nenhum dado de presença no período selecionado.');
+    }
+
+    const label = days ? `últimos ${days} dias` : 'todos os tempos';
+
+    await interaction.editReply({
+      content: `📊 Gráfico de presenças (${label}):`,
+      files: [{ attachment: chartBuffer, name: 'grafico-presencas.png' }],
+    });
   }
 });
 
