@@ -45,7 +45,7 @@ async function generateChart(guild, guildId, days = null) {
     for (const userId of Object.keys(filteredData)) {
       try {
         const member = await guild.members.fetch(userId);
-        labels.push(member.user.username);
+        labels.push(member.user.displayName);
         counts.push(filteredData[userId]);
       } catch {
         labels.push('Usuário desconhecido');

@@ -69,7 +69,7 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    const presentUsers = voiceChannel.members.map(m => `✅ ${m.user.username}`);
+    const presentUsers = voiceChannel.members.map(m => `✅ ${m.user.displayName}`);
     const userIds = voiceChannel.members.map(m => m.user.id);
     const today = new Date().toISOString().slice(0, 10);
 
@@ -102,7 +102,7 @@ client.on('interactionCreate', async interaction => {
     const lines = await Promise.all(
       report.map(async (entry, index) => {
         const user = await guild.members.fetch(entry.userId).catch(() => null);
-        const name = user?.user.username || 'Usuário desconhecido';
+        const name = user?.user.displayName || 'Usuário desconhecido';
         return `${index + 1}. **${name}** - ${entry.count} presença(s)`;
       })
     );
