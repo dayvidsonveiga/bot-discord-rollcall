@@ -1,12 +1,18 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const cron = require('node-cron');
+const { DateTime } = require('luxon');
 require('dotenv').config();
-const { saveAttendance } = require('./utils/attendance/attendanceRegister');
+
 const { generateReport } = require('./utils/attendance/attendanceReport');
 const { generateChart } = require('./utils/attendance/attendanceChart');
+const { performAttendanceCall } = require('./utils/attendance/performAttendanceCall');
 
 const TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const TEXT_CHANNEL_NAME = process.env.TEXT_CHANNEL_NAME;
+const ENABLE_AUTOMATIC_CALLS = process.env.ENABLE_AUTOMATIC_CALLS === 'true';
+const AUTO_CALL_TIME = process.env.AUTO_CALL_TIME || '18:30';
+const GUILD_ID = process.env.GUILD_ID;
 
 const client = new Client({
   intents: [
@@ -42,55 +48,39 @@ client.once('ready', async () => {
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-    console.log('🚀 Comandos /chamada, /relatorio e /grafico registrados com sucesso');
+    console.log('🚀 Comandos registrados com sucesso');
   } catch (err) {
     console.error('❌ Erro ao registrar comandos:', err);
   }
+
+  scheduleAutomaticCall();
 });
 
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const guild = interaction.guild;
-  const guildId = guild.id;
-  const member = interaction.member;
-
-  const textChannel = guild.channels.cache.find(
-    c => c.name === TEXT_CHANNEL_NAME && c.isTextBased()
-  );
 
   if (interaction.commandName === 'chamada') {
-    const voiceChannel = member.voice.channel;
+    const member = interaction.member;
 
-    if (!voiceChannel) {
+    if (!member.voice.channel) {
       return interaction.reply({
         content: '❌ Você precisa estar em um canal de voz para usar este comando.',
         ephemeral: true,
       });
     }
 
-    const presentUsers = voiceChannel.members.map(m => `✅ ${m.user.displayName}`);
-    const userIds = voiceChannel.members.map(m => m.user.id);
-    const today = new Date().toISOString().slice(0, 10);
+    await performAttendanceCall(guild, TEXT_CHANNEL_NAME);
 
-    userIds.forEach(id => saveAttendance(guildId, id, today));
-
-    const attendanceList = presentUsers.length
-      ? `🎙️ **Presentes na chamada \`${voiceChannel.name}\`**:\n${presentUsers.join('\n')}`
-      : '🔇 Ninguém além de você está na chamada.';
-
-    if (textChannel) {
-      await textChannel.send(attendanceList);
-    }
-
-    await interaction.reply({
+    return interaction.reply({
       content: '✅ Lista de presença registrada.',
       ephemeral: true,
     });
   }
 
   if (interaction.commandName === 'relatorio') {
-    const report = generateReport(guildId);
+    const report = generateReport(guild.id);
 
     if (report.length === 0) {
       return interaction.reply({
@@ -116,7 +106,7 @@ client.on('interactionCreate', async interaction => {
 
     const days = interaction.options.getInteger('periodo') || null;
 
-    const chartBuffer = await generateChart(guild, guildId, days);
+    const chartBuffer = await generateChart(guild, guild.id, days);
 
     if (!chartBuffer) {
       return interaction.editReply('📭 Nenhum dado de presença no período selecionado.');
@@ -130,5 +120,35 @@ client.on('interactionCreate', async interaction => {
     });
   }
 });
+
+function scheduleAutomaticCall() {
+  if (!ENABLE_AUTOMATIC_CALLS) {
+    console.log('⏸️ Chamada automática desativada via .env');
+    return;
+  }
+
+  const [hour, minute] = AUTO_CALL_TIME.split(':').map(Number);
+  const cronExpr = `${minute} ${hour} * * *`; // min hora dia mês dia-da-semana
+
+  cron.schedule(cronExpr, async () => {
+    const now = DateTime.now().setZone('America/Sao_Paulo');
+    console.log(`⏰ Executando chamada automática em ${now.toISOTime()}`);
+
+    const guild = client.guilds.cache.get(GUILD_ID);
+    if (!guild) {
+      console.error(`❌ Guild com ID ${GUILD_ID} não encontrada`);
+      return;
+    }
+
+    const sucesso = await performAttendanceCall(guild, TEXT_CHANNEL_NAME);
+    if (sucesso) {
+      console.log('✅ Chamada automática registrada');
+    }
+  }, {
+    timezone: 'America/Sao_Paulo',
+  });
+
+  console.log(`📅 Chamada automática agendada para ${AUTO_CALL_TIME} (GMT-3)`);
+}
 
 client.login(TOKEN);

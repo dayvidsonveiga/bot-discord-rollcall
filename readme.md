@@ -32,6 +32,9 @@ ini
 BOT_TOKEN=seu_token_aqui
 CLIENT_ID=seu_client_id_aqui
 TEXT_CHANNEL_NAME=logs-de-presenca
+ENABLE_AUTOMATIC_CALLS=boolean
+AUTO_CALL_TIME=horario_a_ser_feito_chamada_automatica_ex_18:30
+GUILD_ID=seu_guild_id_aqui
 Permissões Necessárias do Bot:
 
 View Channels

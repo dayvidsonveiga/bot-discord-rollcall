@@ -16,6 +16,8 @@
   "dependencies": {
     "chartjs-node-canvas": "^5.0.0",
     "discord.js": "^14.19.3",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.5.0",
+    "luxon": "^3.6.1",
+    "node-cron": "^4.0.7"
   }
 }
